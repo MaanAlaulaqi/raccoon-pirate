@@ -1,0 +1,38 @@
+<div
+    id="raccoon-terminal"
+    class="fixed bottom-0 left-0 w-full overflow-hidden min-h-[5vh] max-h-[90vh] h-[30vh] bg-black text-green-500 font-mono text-sm z-[9999] shadow-xl border-t border-green-800 hidden"
+>
+    <!-- Resize handle -->
+    <div
+        id="terminal-resize-handle"
+        class="relative w-full"
+        style="height: 1px;"
+    >
+        <div
+            class="absolute left-0 top-1/2 w-full"
+            style="height: 22px; transform: translateY(-50%); cursor: row-resize; pointer-events: auto;"
+        ></div>
+        <div
+            class="bg-green-900 w-full"
+            style="height: 1px; position: absolute; left: 0; top: 50%; transform: translateY(-50%); pointer-events: none;"
+        ></div>
+    </div>
+
+    <!-- Terminal content -->
+    <div
+        id="terminal-output"
+        class="overflow-y-auto h-[calc(100%-3rem)] px-2 pt-1 whitespace-pre-wrap leading-tight pr-2 mb-1"
+    >
+        raccoon@interperter:~$
+    </div>
+    <input
+        id="terminal-input"
+        type="text"
+        class="bg-transparent outline-none w-full px-2 pb-1"
+        placeholder="Type a command (press ` to toggle)"
+        autofocus
+    />
+</div>
+
+
+<script type="module" src="/src/scripts/terminal.js"></script>

@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root[data-theme="dark"] {
+  --site-bg: #18181b;
+  --site-text: #e5e7eb;
+  --terminal-bg: #000;
+  --terminal-text: #00ff00;
+}
+
+:root[data-theme="light"] {
+  --site-bg: #f9f9f9;
+  --site-text: #222;
+  --terminal-bg: #fffbe7;
+  --terminal-text: #2d6a4f;
+}
+
+body, html {
+  background: var(--site-bg);
+  color: var(--site-text);
+  transition: background 0.3s, color 0.3s;
+}
+
+a, h1, h2, h3, h4, h5, h6, p, li, th, td {
+  color: var(--site-text);
+}
+
+#raccoon-terminal {
+  background-color: var(--terminal-bg);
+  color: var(--terminal-text);
+  transition: background-color 0.3s, color 0.3s;
+}
