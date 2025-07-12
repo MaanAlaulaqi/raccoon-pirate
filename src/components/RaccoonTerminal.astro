@@ -1,3 +1,6 @@
+---
+import terminalScript from '../scripts/terminal.js?url';
+---
 <div
     id="raccoon-terminal"
     class="fixed bottom-0 left-0 w-full overflow-hidden min-h-[5vh] max-h-[90vh] h-[30vh] bg-black text-green-500 font-mono text-sm z-[9999] shadow-xl border-t border-green-800 hidden"
@@ -34,5 +37,4 @@
     />
 </div>
 
-
-<script type="module" src="/src/scripts/terminal.js"></script>
+<script type="module" src={terminalScript}></script>
