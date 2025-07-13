@@ -2,24 +2,24 @@ import { defineConfig } from 'astro/config';
 import vercel from '@astrojs/vercel';
 import path from 'path';
 
-
-// https://astro.build/config
 export default defineConfig({
   adapter: vercel(),
-    vite: {
+  server: {
+    port: 9001,
+  },
+  vite: {
     build: {
       rollupOptions: {
         input: {
-          terminal: path.resolve('./src/terminal-entry.js'),
-          main: path.resolve('./src/pages/index.astro'),
+          main: path.resolve('./src/pages/index.astro'), 
+          terminal: path.resolve('./src/terminal-entry.js'), 
         },
         output: {
-          entryFileNames: 'assets/[name].bundle.js',
+          entryFileNames: 'assets/[name].bundle.js', 
+          chunkFileNames: 'assets/chunks/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash][extname]', 
         },
       },
     },
-  },
-  server: {
-    port: 9001,
   },
 });

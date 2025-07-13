@@ -4,7 +4,8 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build --devOutput",
+    "build": "npm run build:terminal && astro build",
+    "build:terminal": "vite build --config vite.config.terminal.js",
     "preview": "astro preview",
     "astro": "astro"
   },
