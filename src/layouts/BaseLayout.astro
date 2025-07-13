@@ -1,14 +1,19 @@
 ---
+import "../styles/globals.css";
 import RaccoonTerminal from "../components/RaccoonTerminal.astro";
 ---
 
 <html lang="en">
   <head>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.png" sizes="32x32" type="image/png" />
+
     <meta charset="UTF-8" />
     <title>🦝 Roadside Trash Interpreter</title>
-    <link rel="stylesheet" href="/src/styles/globals.css" />
   </head>
-  <body style="background: var(--bg); color: var(--text); transition: background 0.3s, color 0.3s;">
+  <body
+    style="background: var(--bg); color: var(--text); transition: background 0.3s, color 0.3s;"
+  >
     <RaccoonTerminal />
     <slot />
   </body>

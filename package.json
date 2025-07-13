@@ -4,13 +4,16 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "npm run build:terminal && astro build",
+    "build:terminal": "vite build --config vite.config.terminal.js",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/check": "^0.9.4",
     "@astrojs/vercel": "^8.0.4",
-    "astro": "^5.11.0"
+    "astro": "^5.11.0",
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
