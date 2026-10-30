@@ -1,3 +1,8 @@
+networks:
+  data:
+    external: true
+    name: ${DATA_NETWORK:?Set DATA_NETWORK}
+
 services:
   web:
     image: ${DEV_IMAGE:?DEV_IMAGE must be set}
@@ -25,6 +30,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - default
+      - data
 
 volumes:
   caddy_data:

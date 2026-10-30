@@ -91,9 +91,16 @@ jobs:
           set -euo pipefail
           release="/opt/raccoon-pirate/releases/$GITHUB_SHA"
 
-          ssh lightsail-dev "mkdir -p '$release'"
+          ssh lightsail-dev "mkdir -p '$release/infra'"
+
           scp image.tar.gz "lightsail-dev:$release/image.tar.gz"
           scp deploy/compose.dev.yaml "lightsail-dev:$release/compose.yaml"
+
+          scp deploy/compose.infra.yaml \
+            "lightsail-dev:$release/infra/compose.infra.yaml"
+
+          scp -r deploy/mongo deploy/postgres \
+            "lightsail-dev:$release/infra/"
 
       - name: Deploy and verify frontend and backend
         shell: bash
@@ -107,6 +114,27 @@ jobs:
           release="/opt/raccoon-pirate/releases/$sha"
           cd "$release"
 
+          secrets=/opt/raccoon-pirate/secrets/dev.env
+
+          sudo -n test -s "$secrets"
+
+          infra=(
+            sudo -n docker compose
+            --project-name raccoon-pirate-infra-dev
+            --env-file "$secrets"
+            --file "$release/infra/compose.infra.yaml"
+          )
+
+          "${infra[@]}" config --quiet
+
+          if ! "${infra[@]}" up -d \
+            --pull missing \
+            --wait --wait-timeout 180; then
+            "${infra[@]}" ps
+            "${infra[@]}" logs --tail=100 mongo postgres
+            exit 1
+          fi
+
           sudo -n docker load --input image.tar.gz
           rm image.tar.gz
 
@@ -116,10 +144,10 @@ jobs:
           compose=(
             sudo -n docker compose
             --project-name raccoon-pirate
+            --env-file "$secrets"
             --env-file "$release/image.env"
             --file "$release/compose.yaml"
           )
-
           "${compose[@]}" config --quiet
 
           if ! "${compose[@]}" up -d \

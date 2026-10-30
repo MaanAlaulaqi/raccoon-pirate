@@ -1,55 +1,8 @@
 services:
   mongo:
-    image: mongo:8.0
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD}
-      MONGO_INITDB_DATABASE: raccoon_pirate
-      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:?Set MONGO_APP_PASSWORD}
     ports:
       - "127.0.0.1:27017:27017"
-    volumes:
-      - mongo_data:/data/db
-      - ./mongo/init:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test:
-        - CMD
-        - mongosh
-        - --quiet
-        - --eval
-        - "quit(db.adminCommand({ ping: 1 }).ok ? 0 : 1)"
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 20s
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   postgres:
-    image: postgres:17-bookworm
-    environment:
-      POSTGRES_DB: the_bridge
-      POSTGRES_USER: bridge_troll
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     ports:
       - "127.0.0.1:5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bridge_troll -d the_bridge"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 10s
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-volumes:
-  mongo_data:
-  postgres_data:
