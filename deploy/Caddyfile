@@ -1,5 +1,13 @@
 dev.maanalaulaqi.com {
-    root * /srv
     encode zstd gzip
-    file_server
+
+    @api path /api /api/*
+    handle @api {
+        reverse_proxy backend:3000
+    }
+
+    handle {
+        root * /srv
+        file_server
+    }
 }
