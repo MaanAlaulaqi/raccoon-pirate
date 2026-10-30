@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+.astro
+.vercel
+.env
+.env.*
+*.pem
+*.key
+*.blend
+*.glb
+*.zip
