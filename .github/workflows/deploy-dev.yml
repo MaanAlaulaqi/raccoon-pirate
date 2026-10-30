@@ -67,14 +67,23 @@ jobs:
             sudo -n docker volume inspect raccoon-pirate_caddy_data >/dev/null &&
             sudo -n docker volume inspect raccoon-pirate_caddy_config >/dev/null'
 
-      - name: Build image
+      - name: Build images
         run: |
           set -euo pipefail
+
           docker build \
             --platform linux/amd64 \
             --tag "raccoon-pirate-web:$GITHUB_SHA" \
             .
-          docker save "raccoon-pirate-web:$GITHUB_SHA" |
+
+          docker build \
+            --platform linux/amd64 \
+            --tag "raccoon-pirate-backend:$GITHUB_SHA" \
+            ./backend
+
+          docker save \
+            "raccoon-pirate-web:$GITHUB_SHA" \
+            "raccoon-pirate-backend:$GITHUB_SHA" |
             gzip > image.tar.gz
 
       - name: Transfer release
@@ -86,7 +95,7 @@ jobs:
           scp image.tar.gz "lightsail-dev:$release/image.tar.gz"
           scp deploy/compose.dev.yaml "lightsail-dev:$release/compose.yaml"
 
-      - name: Deploy and verify HTTPS
+      - name: Deploy and verify frontend and backend
         shell: bash
         run: |
           set -euo pipefail
@@ -102,6 +111,7 @@ jobs:
           rm image.tar.gz
 
           printf 'DEV_IMAGE=raccoon-pirate-web:%s\n' "$sha" > image.env
+          printf 'DEV_BACKEND_IMAGE=raccoon-pirate-backend:%s\n' "$sha" >> image.env
 
           compose=(
             sudo -n docker compose
@@ -111,22 +121,31 @@ jobs:
           )
 
           "${compose[@]}" config --quiet
-          "${compose[@]}" up -d --no-build --pull never
 
-          if ! curl --fail --silent --show-error \
-            --resolve dev.maanalaulaqi.com:443:127.0.0.1 \
-            --retry 10 \
-            --retry-all-errors \
-            --retry-delay 3 \
-            --max-time 10 \
-            https://dev.maanalaulaqi.com/ >/dev/null; then
+          if ! "${compose[@]}" up -d \
+            --no-build --pull never \
+            --wait --wait-timeout 120; then
             "${compose[@]}" ps
-            "${compose[@]}" logs --tail=100 web
+            "${compose[@]}" logs --tail=100 web backend
             exit 1
           fi
 
+          for path in / /api/health; do
+            if ! curl --fail --silent --show-error \
+              --resolve dev.maanalaulaqi.com:443:127.0.0.1 \
+              --retry 10 \
+              --retry-all-errors \
+              --retry-delay 3 \
+              --max-time 10 \
+              "https://dev.maanalaulaqi.com$path" >/dev/null; then
+              "${compose[@]}" ps
+              "${compose[@]}" logs --tail=100 web backend
+              exit 1
+            fi
+          done
+
           "${compose[@]}" ps
-          echo "Successfully deployed $sha"
+          echo "Successfully deployed frontend and backend at $sha"
           REMOTE
 
       - name: Remove SSH credentials

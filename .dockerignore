@@ -10,3 +10,4 @@ dist
 *.blend
 *.glb
 *.zip
+backend/
