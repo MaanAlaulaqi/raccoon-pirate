@@ -1,0 +1,134 @@
+name: Deploy development
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: raccoon-pirate-dev-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    env:
+      DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+      DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+      DEV_SSH_KEY: ${{ secrets.DEV_SSH_KEY }}
+      DEV_SSH_KNOWN_HOSTS: ${{ secrets.DEV_SSH_KNOWN_HOSTS }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for name in DEV_SSH_HOST DEV_SSH_USER DEV_SSH_KEY DEV_SSH_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing secret: $name"
+              exit 1
+            fi
+          done
+
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEV_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEV_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+
+          cat > ~/.ssh/config <<EOF
+          Host lightsail-dev
+            HostName $DEV_SSH_HOST
+            User $DEV_SSH_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            ConnectTimeout 15
+            ServerAliveInterval 15
+            ServerAliveCountMax 4
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Check server access
+        run: |
+          ssh lightsail-dev 'sudo -n docker info >/dev/null &&
+            sudo -n docker compose version &&
+            sudo -n docker volume inspect raccoon-pirate_caddy_data >/dev/null &&
+            sudo -n docker volume inspect raccoon-pirate_caddy_config >/dev/null'
+
+      - name: Build image
+        run: |
+          set -euo pipefail
+          docker build \
+            --platform linux/amd64 \
+            --tag "raccoon-pirate-web:$GITHUB_SHA" \
+            .
+          docker save "raccoon-pirate-web:$GITHUB_SHA" |
+            gzip > image.tar.gz
+
+      - name: Transfer release
+        run: |
+          set -euo pipefail
+          release="/opt/raccoon-pirate/releases/$GITHUB_SHA"
+
+          ssh lightsail-dev "mkdir -p '$release'"
+          scp image.tar.gz "lightsail-dev:$release/image.tar.gz"
+          scp deploy/compose.dev.yaml "lightsail-dev:$release/compose.yaml"
+
+      - name: Deploy and verify HTTPS
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh lightsail-dev bash -s -- "$GITHUB_SHA" <<'REMOTE'
+          set -euo pipefail
+
+          sha="$1"
+          release="/opt/raccoon-pirate/releases/$sha"
+          cd "$release"
+
+          sudo -n docker load --input image.tar.gz
+          rm image.tar.gz
+
+          printf 'DEV_IMAGE=raccoon-pirate-web:%s\n' "$sha" > image.env
+
+          compose=(
+            sudo -n docker compose
+            --project-name raccoon-pirate
+            --env-file "$release/image.env"
+            --file "$release/compose.yaml"
+          )
+
+          "${compose[@]}" config --quiet
+          "${compose[@]}" up -d --no-build --pull never
+
+          if ! curl --fail --silent --show-error \
+            --resolve dev.maanalaulaqi.com:443:127.0.0.1 \
+            --retry 10 \
+            --retry-all-errors \
+            --retry-delay 3 \
+            --max-time 10 \
+            https://dev.maanalaulaqi.com/ >/dev/null; then
+            "${compose[@]}" ps
+            "${compose[@]}" logs --tail=100 web
+            exit 1
+          fi
+
+          "${compose[@]}" ps
+          echo "Successfully deployed $sha"
+          REMOTE
+
+      - name: Remove SSH credentials
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/known_hosts ~/.ssh/config

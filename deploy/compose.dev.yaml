@@ -1,0 +1,23 @@
+services:
+  web:
+    image: ${DEV_IMAGE:?DEV_IMAGE must be set}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  caddy_data:
+    external: true
+    name: raccoon-pirate_caddy_data
+  caddy_config:
+    external: true
+    name: raccoon-pirate_caddy_config

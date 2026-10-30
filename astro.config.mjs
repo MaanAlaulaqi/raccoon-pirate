@@ -1,9 +1,7 @@
 import { defineConfig } from 'astro/config';
-import vercel from '@astrojs/vercel';
 import path from 'path';
 
 export default defineConfig({
-  adapter: vercel(),
   server: {
     port: 9001,
   },
