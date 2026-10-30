@@ -1,129 +1,159 @@
-import { getCommandResponse, isAsyncCommand, runAsyncCommand, commands } from "./commands.js";
-import { getState, toggleVisibility, setVisible, pushHistory, getHistory, updateHistoryIndex, saveState, restoreState } from "./state.js";
+import {
+  getCommandResponse,
+  isAsyncCommand,
+  runAsyncCommand,
+  commands,
+} from "./commands.js";
+
+import {
+  getState,
+  toggleVisibility,
+  setVisible,
+  pushHistory,
+  getHistory,
+  updateHistoryIndex,
+  saveState,
+  restoreState,
+} from "./state.js";
 
 // Restore theme on load
 document.documentElement.dataset.theme =
   localStorage.getItem("raccoonTheme") || "dark";
 
 document.addEventListener("DOMContentLoaded", () => {
-    const terminal = document.getElementById("raccoon-terminal");
-    const output = document.getElementById("terminal-output");
-    const input = document.getElementById("terminal-input");
-    const handle = document.getElementById("terminal-resize-handle");
+  const terminal = document.getElementById("raccoon-terminal");
+  const output = document.getElementById("terminal-output");
+  const input = document.getElementById("terminal-input");
+  const handle = document.getElementById("terminal-resize-handle");
 
-    const sanitizeInput = (input) => {
-        const temp = document.createElement("div");
-        temp.innerText = input;
-        return temp.innerText.trim();
-    };
+  const prompt = "raccoon@interperter:~$ ";
 
-    const handleTerminalCommand = async (inputVal) => {
-        const sanitized = sanitizeInput(inputVal);
-        pushHistory(sanitized);
+  // Add text, never interpret command input or responses as HTML.
+  // The existing whitespace-pre-wrap CSS displays newline characters.
+  const appendLine = (text) => {
+    output.append(
+      document.createTextNode(`\n${String(text ?? "")}`)
+    );
+  };
 
-        if (commands[sanitized] === "__CLEAR__") {
-            output.innerHTML = "raccoon@interperter:~$ ";
-        } else {
-            output.innerHTML += `<br>> ${sanitized}`;
-            if (isAsyncCommand(sanitized)) {
-                const response = await runAsyncCommand(sanitized);
-                output.innerHTML += `<br>${response}`;
-            } else {
-                const response = getCommandResponse(sanitized);
-                output.innerHTML += `<br>${response}`;
-            }
-            output.innerHTML += `<br>raccoon@interperter:~$ `;
-        }
+  const persistState = () => {
+    saveState(output.textContent, terminal.style.height);
+  };
 
-        output.scrollTop = output.scrollHeight;
-        saveState(output.innerHTML, terminal.style.height);
-    };
+  const handleTerminalCommand = async (inputVal) => {
+    // Trimming normalizes whitespace. Safe rendering happens in appendLine.
+    const command = inputVal.trim();
+    pushHistory(command);
 
-    // Resize logic
-    let isResizing = false;
-    let startY = 0;
-    let startHeight = 0;
+    if (commands[command] === "__CLEAR__") {
+      output.textContent = prompt;
+    } else {
+      appendLine(`> ${command}`);
 
-    if (handle && terminal) {
-        handle.addEventListener("mousedown", (e) => {
-            isResizing = true;
-            startY = e.clientY;
-            startHeight = terminal.offsetHeight;
-            document.body.style.userSelect = "none";
-        });
+      const response = isAsyncCommand(command)
+        ? await runAsyncCommand(command)
+        : getCommandResponse(command);
 
-        window.addEventListener("mousemove", (e) => {
-            if (!isResizing) return;
-            const dy = e.clientY - startY;
-            let newHeight = startHeight - dy;
-            const minHeight = window.innerHeight * 0.05;
-            const maxHeight = window.innerHeight * 0.9;
-            newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
-            terminal.style.height = `${newHeight}px`;
-        });
-
-        window.addEventListener("mouseup", () => {
-            if (isResizing) {
-                isResizing = false;
-                document.body.style.userSelect = "";
-                saveState(output.innerHTML, terminal.style.height);
-            }
-        });
+      appendLine(response);
+      appendLine(prompt);
     }
 
-    // Observer fallback
-    const observer = new ResizeObserver((entries) => {
-        for (let entry of entries) {
-            saveState(output.innerHTML, `${entry.contentRect.height}px`);
-        }
-    });
-    observer.observe(terminal);
+    output.scrollTop = output.scrollHeight;
+    persistState();
+  };
 
-    // Global keybindings
-    window.addEventListener("keydown", (e) => {
-        const state = getState();
+  // Resize logic
+  let isResizing = false;
+  let startY = 0;
+  let startHeight = 0;
 
-        if (
-            e.code === "Backquote" &&
-            !e.shiftKey &&
-            !e.ctrlKey &&
-            !e.metaKey &&
-            !e.altKey
-        ) {
-            e.preventDefault();
-            const visible = toggleVisibility();
-            terminal.style.display = visible ? "block" : "none";
-            if (visible) input?.focus();
-            saveState(output.innerHTML, terminal.style.height);
-        }
-
-        if (e.code === "Escape" && state.visible) {
-            setVisible(false);
-            terminal.style.display = "none";
-            saveState(output.innerHTML, terminal.style.height);
-        }
-
-        if (state.visible && e.target === input) {
-            if (e.key === "ArrowUp") {
-                e.preventDefault();
-                const idx = updateHistoryIndex(-1);
-                input.value = getHistory(idx);
-            }
-
-            if (e.key === "ArrowDown") {
-                e.preventDefault();
-                const idx = updateHistoryIndex(1);
-                input.value = getHistory(idx);
-            }
-        }
+  if (handle && terminal) {
+    handle.addEventListener("mousedown", (e) => {
+      isResizing = true;
+      startY = e.clientY;
+      startHeight = terminal.offsetHeight;
+      document.body.style.userSelect = "none";
     });
 
-    input?.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            handleTerminalCommand(input.value);
-            input.value = "";
-        }
+    window.addEventListener("mousemove", (e) => {
+      if (!isResizing) return;
+
+      const dy = e.clientY - startY;
+      let newHeight = startHeight - dy;
+      const minHeight = window.innerHeight * 0.05;
+      const maxHeight = window.innerHeight * 0.9;
+
+      newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
+      terminal.style.height = `${newHeight}px`;
     });
 
-    restoreState(terminal, output);
+    window.addEventListener("mouseup", () => {
+      if (isResizing) {
+        isResizing = false;
+        document.body.style.userSelect = "";
+        persistState();
+      }
+    });
+  }
+
+  // Global keybindings
+  window.addEventListener("keydown", (e) => {
+    const state = getState();
+
+    if (
+      e.code === "Backquote" &&
+      !e.shiftKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey
+    ) {
+      e.preventDefault();
+
+      const visible = toggleVisibility();
+      terminal.style.display = visible ? "block" : "none";
+
+      if (visible) input?.focus();
+      persistState();
+    }
+
+    if (e.code === "Escape" && state.visible) {
+      setVisible(false);
+      terminal.style.display = "none";
+      persistState();
+    }
+
+    if (state.visible && e.target === input) {
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const idx = updateHistoryIndex(-1);
+        input.value = getHistory(idx);
+      }
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const idx = updateHistoryIndex(1);
+        input.value = getHistory(idx);
+      }
+    }
+  });
+
+  input?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      handleTerminalCommand(input.value);
+      input.value = "";
+    }
+  });
+
+  // Restore before observing, so initialization cannot overwrite saved output.
+  output.textContent = prompt;
+  restoreState(terminal, output);
+
+  // Observer fallback
+  const observer = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      saveState(output.textContent, `${entry.contentRect.height}px`);
+    }
+  });
+
+  observer.observe(terminal);
 });
