@@ -6,6 +6,9 @@ networks:
 services:
   web:
     image: ${DEV_IMAGE:?DEV_IMAGE must be set}
+    networks:
+      - default
+      - data
     ports:
       - "80:80"
       - "443:443"
