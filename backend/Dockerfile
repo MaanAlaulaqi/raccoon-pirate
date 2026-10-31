@@ -19,6 +19,6 @@ USER app
 EXPOSE 3000
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
-    CMD curl --fail --silent http://127.0.0.1:3000/api/health || exit 1
+    CMD curl --fail --silent http://127.0.0.1:3000/api/ready || exit 1
 
 CMD ["/usr/local/bin/tarmac"]

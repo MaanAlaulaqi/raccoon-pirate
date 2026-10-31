@@ -5,4 +5,5 @@
 
 pub(crate) mod health;
 pub(crate) mod loot;
+pub(crate) mod readiness;
 pub(crate) mod welcome;
