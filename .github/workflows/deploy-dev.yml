@@ -156,7 +156,9 @@ jobs:
             --wait --wait-timeout 180 \
             mongo postgres
 
-          "${infra[@]}" run --rm --no-deps kratos-migrate
+          "${infra[@]}" run --rm --no-deps \
+            --interactive=false -T \
+            kratos-migrate </dev/null
 
           "${infra[@]}" up -d \
             --no-deps \
