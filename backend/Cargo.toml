@@ -12,3 +12,4 @@ mongodb = "3.9.1"
 dotenvy = "0.15"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+reqwest = { version = "0.13", default-features = false, features = ["json"] }

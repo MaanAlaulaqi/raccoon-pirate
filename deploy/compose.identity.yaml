@@ -1,0 +1,58 @@
+x-kratos-environment: &kratos-environment
+  DSN: "postgres://bridge_troll:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/the_bridge?sslmode=disable"
+
+  SECRETS_COOKIE: ${KRATOS_COOKIE_SECRET:?Set KRATOS_COOKIE_SECRET}
+  SECRETS_CIPHER: ${KRATOS_CIPHER_SECRET:?Set KRATOS_CIPHER_SECRET}
+
+  SERVE_PUBLIC_BASE_URL: ${KRATOS_PUBLIC_URL:?Set KRATOS_PUBLIC_URL}
+  SERVE_ADMIN_BASE_URL: http://kratos:4434/
+
+  SELFSERVICE_DEFAULT_BROWSER_RETURN_URL: "${APP_ORIGIN:?Set APP_ORIGIN}/admin"
+  SELFSERVICE_ALLOWED_RETURN_URLS: ${APP_ORIGIN:?Set APP_ORIGIN}
+
+  SELFSERVICE_FLOWS_LOGIN_UI_URL: "${APP_ORIGIN:?Set APP_ORIGIN}/admin/login"
+  SELFSERVICE_FLOWS_ERROR_UI_URL: "${APP_ORIGIN:?Set APP_ORIGIN}/auth/error"
+  SELFSERVICE_FLOWS_SETTINGS_UI_URL: "${APP_ORIGIN:?Set APP_ORIGIN}/account/settings"
+  SELFSERVICE_FLOWS_LOGOUT_AFTER_DEFAULT_BROWSER_RETURN_URL: "${APP_ORIGIN:?Set APP_ORIGIN}/"
+
+services:
+  kratos-migrate:
+    image: oryd/kratos:v26.2.0
+    environment: *kratos-environment
+    command:
+      - migrate
+      - sql
+      - up
+      - --config
+      - /etc/config/kratos/kratos.yaml
+      - --read-from-env
+      - --yes
+    volumes:
+      - ./kratos:/etc/config/kratos:ro
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  kratos:
+    image: oryd/kratos:v26.2.0
+    environment: *kratos-environment
+    command:
+      - serve
+      - --config
+      - /etc/config/kratos/kratos.yaml
+    volumes:
+      - ./kratos:/etc/config/kratos:ro
+    networks:
+      - data
+    depends_on:
+      kratos-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

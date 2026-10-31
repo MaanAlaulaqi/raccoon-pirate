@@ -1,6 +1,12 @@
 dev.maanalaulaqi.com {
     encode zstd gzip
 
+    redir /auth/kratos /auth/kratos/ 308
+
+    handle_path /auth/kratos/* {
+        reverse_proxy kratos:4433
+    }
+
     @api path /api /api/*
     handle @api {
         reverse_proxy backend:3000

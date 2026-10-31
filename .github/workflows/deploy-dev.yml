@@ -96,13 +96,12 @@ jobs:
           scp image.tar.gz "lightsail-dev:$release/image.tar.gz"
           scp deploy/compose.dev.yaml "lightsail-dev:$release/compose.yaml"
 
-          scp deploy/compose.infra.yaml \
-            "lightsail-dev:$release/infra/compose.infra.yaml"
-
-          scp -r deploy/mongo deploy/postgres \
+          scp deploy/compose.infra.yaml deploy/compose.identity.yaml \
             "lightsail-dev:$release/infra/"
 
-      - name: Deploy and verify frontend and backend
+          scp -r deploy/mongo deploy/postgres deploy/kratos \
+            "lightsail-dev:$release/infra/"
+      - name: Deploy and verify application and identity services
         shell: bash
         run: |
           set -euo pipefail
@@ -112,9 +111,8 @@ jobs:
 
           sha="$1"
           release="/opt/raccoon-pirate/releases/$sha"
-          cd "$release"
-
           secrets=/opt/raccoon-pirate/secrets/dev.env
+          cd "$release"
 
           sudo -n test -s "$secrets"
 
@@ -123,17 +121,10 @@ jobs:
             --project-name raccoon-pirate-infra-dev
             --env-file "$secrets"
             --file "$release/infra/compose.infra.yaml"
+            --file "$release/infra/compose.identity.yaml"
           )
 
           "${infra[@]}" config --quiet
-
-          if ! "${infra[@]}" up -d \
-            --pull missing \
-            --wait --wait-timeout 180; then
-            "${infra[@]}" ps
-            "${infra[@]}" logs --tail=100 mongo postgres
-            exit 1
-          fi
 
           sudo -n docker load --input image.tar.gz
           rm image.tar.gz
@@ -148,32 +139,84 @@ jobs:
             --env-file "$release/image.env"
             --file "$release/compose.yaml"
           )
+
           "${compose[@]}" config --quiet
 
-          if ! "${compose[@]}" up -d \
-            --no-build --pull never \
-            --wait --wait-timeout 120; then
-            "${compose[@]}" ps
-            "${compose[@]}" logs --tail=100 web backend
+          diagnostics() {
+            "${infra[@]}" ps -a || true
+            "${infra[@]}" logs --tail=80 mongo postgres kratos || true
+            "${compose[@]}" ps -a || true
+            "${compose[@]}" logs --tail=80 web backend || true
+          }
+
+          trap diagnostics ERR
+
+          "${infra[@]}" up -d \
+            --pull missing \
+            --wait --wait-timeout 180 \
+            mongo postgres
+
+          "${infra[@]}" run --rm --no-deps kratos-migrate
+
+          "${infra[@]}" up -d \
+            --no-deps \
+            --pull missing \
+            kratos
+
+          data_network="$(
+            sudo -n docker inspect \
+              --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' \
+              "$("${infra[@]}" ps -q postgres)"
+          )"
+
+          if [ -z "$data_network" ]; then
+            echo "Could not determine the infrastructure network"
             exit 1
           fi
 
-          for path in / /api/health /api/ready; do
-            if ! curl --fail --silent --show-error \
+          sudo -n docker run --rm \
+            --network "$data_network" \
+            --entrypoint curl \
+            "raccoon-pirate-backend:$sha" \
+            --fail --silent --show-error \
+            --retry 20 \
+            --retry-all-errors \
+            --retry-delay 3 \
+            --connect-timeout 3 \
+            --max-time 5 \
+            http://kratos:4433/health/ready >/dev/null
+
+          "${compose[@]}" up -d \
+            --no-build --pull never \
+            --wait --wait-timeout 120
+
+          for path in / /api/health /api/ready /auth/kratos/health/ready /admin/login; do
+            curl --fail --silent --show-error \
               --resolve dev.maanalaulaqi.com:443:127.0.0.1 \
               --retry 10 \
               --retry-all-errors \
               --retry-delay 3 \
               --max-time 10 \
-              "https://dev.maanalaulaqi.com$path" >/dev/null; then
-              "${compose[@]}" ps
-              "${compose[@]}" logs --tail=100 web backend
-              exit 1
-            fi
+              "https://dev.maanalaulaqi.com$path" >/dev/null
           done
 
+          admin_status="$(
+            curl --silent --show-error \
+              --resolve dev.maanalaulaqi.com:443:127.0.0.1 \
+              --max-time 10 \
+              --output /dev/null \
+              --write-out '%{http_code}' \
+              https://dev.maanalaulaqi.com/api/admin/me
+          )"
+
+          if [ "$admin_status" != "401" ]; then
+            echo "Expected unauthenticated admin request to return 401; received $admin_status"
+            exit 1
+          fi
+
+          "${infra[@]}" ps -a
           "${compose[@]}" ps
-          echo "Successfully deployed frontend and backend at $sha"
+          echo "Successfully deployed application and identity services at $sha"
           REMOTE
 
       - name: Remove SSH credentials

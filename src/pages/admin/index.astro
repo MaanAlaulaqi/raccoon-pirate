@@ -1,0 +1,102 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+---
+<BaseLayout>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Account · Raccoon Pirate</title>
+  </head>
+  <body>
+    <main class="p-4">
+      <h1>Account</h1>
+      <p id="account-status" role="status">Checking your session…</p>
+
+      <button id="logout" type="button" hidden>Sign out</button>
+
+      <p><a href="/">Back to the site</a></p>
+    </main>
+
+    <script>
+      const base = "/auth/kratos";
+      const status =
+        document.querySelector<HTMLParagraphElement>("#account-status");
+      const logout = document.querySelector<HTMLButtonElement>("#logout");
+
+      async function loadSession() {
+        const response = await fetch("/api/admin/me", {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+
+        if (response.status === 401) {
+          location.replace("/admin/login");
+          return;
+        }
+
+        if (response.status === 403) {
+          if (status) {
+            status.textContent =
+              "You are signed in, but this account does not have owner access.";
+          }
+
+          if (logout) logout.hidden = false;
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error("Unable to verify administrator access.");
+        }
+
+        const user = await response.json();
+
+        if (status) {
+          status.textContent = `Signed in with ${user.role} access.`;
+        }
+
+        if (logout) logout.hidden = false;
+      }
+
+      logout?.addEventListener("click", async () => {
+        logout.disabled = true;
+
+        try {
+          const response = await fetch(`${base}/self-service/logout/browser`, {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+          });
+
+          if (!response.ok) {
+            throw new Error("Unable to start logout.");
+          }
+
+          const flow = await response.json();
+          const destination = new URL(flow.logout_url, location.origin);
+
+          if (
+            destination.origin !== location.origin ||
+            destination.pathname !== `${base}/self-service/logout`
+          ) {
+            throw new Error("Unexpected logout destination.");
+          }
+
+          location.assign(destination.href);
+        } catch {
+          if (status) status.textContent = "Logout failed. Please try again.";
+          logout.disabled = false;
+        }
+      });
+
+      loadSession().catch(() => {
+        if (status) {
+          status.textContent =
+            "Session verification is unavailable. Please retry.";
+        }
+      });
+    </script>
+  </body>
+</BaseLayout>

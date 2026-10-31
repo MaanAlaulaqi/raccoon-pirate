@@ -1,0 +1,33 @@
+{
+  "$id": "https://maanalaulaqi.com/schemas/identity.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Raccoon Pirate identity",
+  "type": "object",
+  "properties": {
+    "traits": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "title": "Email",
+          "ory.sh/kratos": {
+            "credentials": {
+              "password": {
+                "identifier": true
+              }
+            }
+          }
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "title": "Display name"
+        }
+      },
+      "required": ["email"],
+      "additionalProperties": false
+    }
+  }
+}

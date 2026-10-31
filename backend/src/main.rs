@@ -1,4 +1,5 @@
 mod app;
+mod auth;
 mod config;
 mod controllers;
 mod database;
@@ -49,7 +50,16 @@ async fn run() {
         process::exit(1);
     });
 
-    let app = app::create_app(AppState { database });
+    let auth =
+        services::auth::AuthService::new(&config.kratos_internal_url).unwrap_or_else(|error| {
+            tracing::error!(
+                error = %error,
+                "Authentication service configuration failed"
+            );
+            process::exit(1);
+        });
+
+    let app = app::create_app(AppState { database, auth });
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
     let listener = tokio::net::TcpListener::bind(addr)
