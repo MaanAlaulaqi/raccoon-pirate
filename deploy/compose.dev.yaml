@@ -33,6 +33,13 @@ services:
     networks:
       - default
       - data
+    environment:
+      MONGO_URI: "mongodb://mongo:27017/?directConnection=true"
+      MONGO_DATABASE: raccoon_pirate
+      MONGO_USERNAME: chief_rat_clerk
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:?Set MONGO_APP_PASSWORD}
+      RUST_LOG: warn,raccoon_pirate=info
+      LOG_FORMAT: json
 
 volumes:
   caddy_data:
