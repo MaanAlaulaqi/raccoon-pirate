@@ -40,6 +40,7 @@ services:
       MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:?Set MONGO_APP_PASSWORD}
       RUST_LOG: warn,raccoon_pirate=info
       LOG_FORMAT: json
+      KRATOS_INTERNAL_URL: http://kratos:4433/
 
 volumes:
   caddy_data:

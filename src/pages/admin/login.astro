@@ -1,0 +1,195 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout>
+<!-- <!doctype html> -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Sign in · Raccoon Pirate</title>
+  </head>
+  <body>
+    <main class="p-4">
+      <h1>Sign in</h1>
+
+      <p id="login-status" role="status">Loading login form…</p>
+
+      <form id="login-form" method="post" hidden></form>
+
+      <p class="mt-6">
+        <a style="padding: 10px;" href="/admin/login">Start a new login</a>
+        ·
+        <a style="padding: 10px;" href="/">Back to the site</a>
+      </p>
+    </main>
+
+    <script>
+      type Message = {
+        text: string;
+      };
+
+      type InputNode = {
+        attributes: {
+          node_type: string;
+          type?: string;
+          name?: string;
+          value?: unknown;
+          required?: boolean;
+          disabled?: boolean;
+        };
+        meta?: {
+          label?: Message;
+        };
+        messages?: Message[];
+      };
+
+      type LoginFlow = {
+        ui: {
+          action: string;
+          method: string;
+          nodes: InputNode[];
+          messages?: Message[];
+        };
+      };
+
+      const base = "/auth/kratos";
+      const form = document.querySelector<HTMLFormElement>("#login-form");
+      const status = document.querySelector<HTMLParagraphElement>("#login-status");
+
+      async function loadLogin() {
+        if (!form || !status) return;
+
+        const flowId = new URLSearchParams(location.search).get("flow");
+
+        if (!flowId) {
+          // Kratos sets the browser CSRF cookie and redirects back with ?flow=…
+          location.replace(`${base}/self-service/login/browser`);
+          return;
+        }
+
+        const response = await fetch(
+          `${base}/self-service/login/flows?id=${encodeURIComponent(flowId)}`,
+          {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            response.status === 410 || response.status === 404
+              ? "This login has expired or is unavailable. Start a new login."
+              : "Unable to load the login form.",
+          );
+        }
+
+        const flow: LoginFlow = await response.json();
+        const action = new URL(flow.ui.action, location.origin);
+
+        // Never submit credentials to another origin or an unrelated endpoint.
+        if (
+          action.origin !== location.origin ||
+          action.pathname !== `${base}/self-service/login` ||
+          flow.ui.method.toLowerCase() !== "post"
+        ) {
+          throw new Error("Unexpected login form destination.");
+        }
+
+        form.action = action.href;
+        form.replaceChildren();
+        form.className = "flex flex-col gap-4 my-4";
+
+        const messages = flow.ui.messages ?? [];
+        status.textContent = messages.length
+          ? messages.map((message) => message.text).join(" ")
+          : "Enter your account credentials.";
+
+        for (const node of flow.ui.nodes) {
+          const attributes = node.attributes;
+
+          if (attributes.node_type !== "input" || !attributes.name) {
+            continue;
+          }
+
+          const type = attributes.type ?? "text";
+
+          if (!["hidden", "text", "email", "password", "submit"].includes(type)) {
+            throw new Error("This login method needs additional UI support.");
+          }
+
+          if (type === "submit") {
+            const button = document.createElement("button");
+            button.type = "submit";
+            button.name = attributes.name;
+            button.value = String(attributes.value ?? "");
+            button.disabled = attributes.disabled ?? false;
+            button.textContent = node.meta?.label?.text ?? "Sign in";
+            button.className = "mt-2 p-2 bg-blue-600 text-white rounded self-start cursor-pointer";
+            form.append(button);
+            continue;
+          }
+
+          const input = document.createElement("input");
+          input.type = type;
+          input.name = attributes.name;
+          input.required = attributes.required ?? false;
+          input.disabled = attributes.disabled ?? false;
+          input.className = "block w-full max-w-xs mt-1 p-2 border border-gray-300 rounded text-black";
+
+          if (type !== "password") {
+            input.value = String(attributes.value ?? "");
+          } else {
+            input.autocomplete = "current-password";
+          }
+
+          if (attributes.name === "identifier") {
+            input.autocomplete = "username";
+          }
+
+          if (type === "hidden") {
+            // Includes the CSRF token supplied by Kratos.
+            form.append(input);
+            continue;
+          }
+
+          const field = document.createElement("div"); 
+          const label = document.createElement("label");
+          label.className = "block text-sm font-medium text-gray-700 dark:text-gray-300";
+
+          label.append(
+            document.createTextNode(
+              `${node.meta?.label?.text ?? attributes.name}`,
+            ),
+            input,
+          );
+
+          field.append(label);
+
+          for (const message of node.messages ?? []) {
+            const error = document.createElement("span");
+            error.textContent = `${message.text}`;
+            error.className = "block text-xs text-red-500 mt-1";
+            field.append(error);
+          }
+
+          form.append(field);
+        }
+
+        form.hidden = false;
+      }
+
+      loadLogin().catch((error: unknown) => {
+        if (form) form.hidden = true;
+        if (status) {
+          status.textContent =
+            error instanceof Error ? error.message : "Login is unavailable.";
+        }
+      });
+    </script>
+  </body>
+</html>
+</BaseLayout>
